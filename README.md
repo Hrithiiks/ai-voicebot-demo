@@ -63,7 +63,7 @@ Edit
 
 **Hrithik S**  
 MSc Computer Science (AI) – CUSAT  
-[GitHub](https://github.com/Hrithiiks) | [LinkedIn](https://linkedin.com/in/your-link)
+[GitHub](https://github.com/Hrithiiks) | [LinkedIn](https://www.linkedin.com/in/hriithiks)
 
 ---
 
