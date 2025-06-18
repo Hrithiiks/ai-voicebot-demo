@@ -1,0 +1,16 @@
+# File: netlify.toml
+
+[build]
+  # Our site doesn't need a build step, so this is empty.
+  command = ""
+  # The directory where our serverless functions are located.
+  functions = "netlify/functions/"
+  # The directory to publish, which is the root.
+  publish = "./"
+
+# This is a crucial rule. It forwards requests from the path /api/* # to your Netlify function. This means you DON'T have to change 
+# your script.js file.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
