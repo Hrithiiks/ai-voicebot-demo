@@ -4,7 +4,7 @@ An interactive voicebot that simulates real-life personal Q&A for job interviews
 
 🔗 **Live Demo:** [https://hrithik-ai-voicebot.netlify.app](https://hrithik-ai-voicebot.netlify.app)
 
-![Screenshot of voicebot UI](./screenshot.png)
+![Screenshot of voicebot UI](./Screenshot.png)
 
 ---
 
