@@ -27,9 +27,9 @@ It mimics my personality, answers reflective questions, and provides a realistic
 
 ## ⚙️ Tech Stack
 
-| Frontend | Backend         | AI Model     | Hosting    |
-|----------|------------------|--------------|------------|
-| React    | Netlify Functions | Gemini Pro API | Netlify     |
+| Frontend                | Backend           | AI Model       | Hosting     |
+|-------------------------|-------------------|----------------|-------------|
+| HTML, CSS, JavaScript   | Netlify Functions | Gemini Pro API | Netlify     |
 
 ---
 
