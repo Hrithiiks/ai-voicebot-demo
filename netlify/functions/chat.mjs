@@ -91,7 +91,7 @@ export default async function handler(req) {
 
         const systemPrompt = createSystemPrompt();
         const geminiApiKey = process.env.GEMINI_API_KEY;
-        const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+        const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`;
 
         // CORRECTED request format for Gemini
         const geminiRequest = {
