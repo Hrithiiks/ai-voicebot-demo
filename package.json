@@ -3,11 +3,23 @@
   "version": "1.0.0",
   "description": "AI Voice Bot for Hrithik Interview",
   "main": "index.html",
-"scripts": {
-  "dev": "netlify dev",
-  "deploy": "netlify deploy --prod"
-},
-  "keywords": ["ai", "voice", "bot", "interview"],
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod"
+  },
+  "keywords": [
+    "ai",
+    "voice",
+    "bot",
+    "interview"
+  ],
   "author": "Hrithik",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "dependencies": {
+    "@netlify/functions": "^2.0.0"
+  }
 }

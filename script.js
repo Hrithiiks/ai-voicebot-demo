@@ -10,6 +10,7 @@ let recognition;
 let speechSynthesis = window.speechSynthesis;
 let isListening = false;
 let isProcessing = false;
+let isToggleBlocked = false; // New safety flag
 
 // Initialize Speech Recognition
 function initializeSpeechRecognition() {
@@ -20,13 +21,14 @@ function initializeSpeechRecognition() {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
-    
+
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
     recognition.maxAlternatives = 1;
 
     recognition.onstart = function() {
+        console.log("Microphone started");
         isListening = true;
         aiCore.classList.add('listening');
         updateStatus('Listening... Speak now.');
@@ -35,10 +37,11 @@ function initializeSpeechRecognition() {
     recognition.onresult = function(event) {
         const transcript = event.results[0][0].transcript;
         console.log('Recognized:', transcript);
-        
+
+        // Stop listening immediately after getting result
         isListening = false;
         aiCore.classList.remove('listening');
-        
+
         if (transcript.trim()) {
             processTranscript(transcript);
         } else {
@@ -48,27 +51,25 @@ function initializeSpeechRecognition() {
 
     recognition.onerror = function(event) {
         console.error('Speech recognition error:', event.error);
+
+        // Ignore 'no-speech' errors if we just clicked stop
+        if (event.error === 'aborted') return;
+
         isListening = false;
         aiCore.classList.remove('listening');
-        
-        let errorMessage = 'Speech recognition error. ';
+
+        let errorMessage = 'Error: ';
         switch(event.error) {
-            case 'network':
-                errorMessage += 'Check your internet connection.';
-                break;
-            case 'not-allowed':
-                errorMessage += 'Microphone access denied.';
-                break;
-            case 'no-speech':
-                errorMessage += 'No speech detected.';
-                break;
-            default:
-                errorMessage += 'Try again or use text input.';
+            case 'network': errorMessage += 'Check connection.'; break;
+            case 'not-allowed': errorMessage += 'Mic access denied.'; break;
+            case 'no-speech': errorMessage += 'No speech heard.'; break;
+            default: errorMessage += event.error;
         }
         updateStatus(errorMessage);
     };
 
     recognition.onend = function() {
+        console.log("Microphone stopped");
         isListening = false;
         aiCore.classList.remove('listening');
         if (!isProcessing) {
@@ -88,32 +89,35 @@ function updateStatus(message) {
 function addToTranscript(message, sender) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}`;
-    
+
     const labelDiv = document.createElement('div');
     labelDiv.className = 'message-label';
     labelDiv.textContent = sender === 'user' ? 'You:' : 'Hrithik:';
-    
+
     const contentDiv = document.createElement('div');
     contentDiv.textContent = message;
-    
+
     messageDiv.appendChild(labelDiv);
     messageDiv.appendChild(contentDiv);
     transcriptContent.appendChild(messageDiv);
-    
+
     transcriptContent.scrollTop = transcriptContent.scrollHeight;
 }
 
 // Process User Input
 async function processTranscript(userMessage) {
     if (isProcessing) return;
-    
+
+    // Stop speaking if user interrupts by typing
+    speechSynthesis.cancel();
+
     try {
         isProcessing = true;
         aiCore.classList.add('processing');
         updateStatus('Processing... Please wait.');
-        
+
         addToTranscript(userMessage, 'user');
-        
+
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: {
@@ -131,11 +135,10 @@ async function processTranscript(userMessage) {
 
         addToTranscript(aiReply, 'ai');
         speakText(aiReply);
-        updateStatus('Speaking... Click the orb when ready to continue.');
 
     } catch (error) {
         console.error('Error processing request:', error);
-        updateStatus('Error: Unable to process request. Check connection.');
+        updateStatus('Error: Check connection.');
         addToTranscript('Sorry, I encountered an error processing your request.', 'ai');
     } finally {
         isProcessing = false;
@@ -146,33 +149,30 @@ async function processTranscript(userMessage) {
 // Text-to-Speech Function
 function speakText(text) {
     speechSynthesis.cancel();
-    
+
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
+    utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    utterance.volume = 0.8;
-    
+
     const voices = speechSynthesis.getVoices();
-    const preferredVoice = voices.find(voice => 
-        voice.lang.startsWith('en') && 
+    const preferredVoice = voices.find(voice =>
+        voice.lang.startsWith('en') &&
         (voice.name.includes('Google') || voice.name.includes('Microsoft'))
     );
-    
+
     if (preferredVoice) {
         utterance.voice = preferredVoice;
     }
 
     utterance.onstart = function() {
-        updateStatus('Speaking...');
+        updateStatus('Speaking... (Click orb to stop)');
     };
 
     utterance.onend = function() {
-        updateStatus('Ready to chat. Click the orb to start.');
-    };
-
-    utterance.onerror = function(event) {
-        console.error('Speech synthesis error:', event);
-        updateStatus('Speech error, but response is in transcript.');
+        // Only reset status if we aren't immediately listening again
+        if (!isProcessing && !isListening) {
+            updateStatus('Ready to chat. Click the orb to start.');
+        }
     };
 
     speechSynthesis.speak(utterance);
@@ -181,31 +181,42 @@ function speakText(text) {
 // Event Listeners
 document.addEventListener('DOMContentLoaded', function() {
     const speechSupported = initializeSpeechRecognition();
-    
+
     if (!speechSupported) {
         updateStatus('Speech not supported. Use text input below.');
     }
 
     aiCore.addEventListener('click', function() {
+        // 1. Prevent spam-clicking
+        if (isToggleBlocked) return;
+        isToggleBlocked = true;
+        setTimeout(() => isToggleBlocked = false, 500); // Re-enable click after 500ms
+
+        // 2. Stop speaking immediately
+        speechSynthesis.cancel();
+
+        // 3. If processing, don't do anything else
         if (isProcessing) {
             updateStatus('Please wait, still processing...');
             return;
         }
 
+        // 4. Toggle Logic with DELAY
         if (isListening) {
             recognition.stop();
             updateStatus('Stopped listening.');
         } else {
-            if (recognition) {
+            // SAFETY DELAY: Wait 200ms before starting mic
+            // This prevents the 'speechSynthesis.cancel()' from killing the mic
+            updateStatus('Initializing mic...');
+            setTimeout(() => {
                 try {
                     recognition.start();
                 } catch (error) {
-                    console.error('Error starting recognition:', error);
-                    updateStatus('Error starting speech recognition. Try text input.');
+                    console.error("Mic start error:", error);
+                    recognition.stop();
                 }
-            } else {
-                updateStatus('Speech recognition not available. Use text input.');
-            }
+            }, 200);
         }
     });
 
@@ -228,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     speechSynthesis.onvoiceschanged = function() {
-        console.log('Voices loaded:', speechSynthesis.getVoices().length);
+        console.log('Voices loaded');
     };
 
     setTimeout(() => {
@@ -238,17 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 1000);
 });
 
-document.addEventListener('visibilitychange', function() {
-    if (document.hidden) {
-        speechSynthesis.pause();
-    } else {
-        speechSynthesis.resume();
-    }
-});
-
 window.addEventListener('beforeunload', function() {
-    if (recognition && isListening) {
-        recognition.stop();
-    }
+    if (recognition) recognition.abort();
     speechSynthesis.cancel();
 });

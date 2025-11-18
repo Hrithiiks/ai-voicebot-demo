@@ -91,14 +91,14 @@ export default async function handler(req) {
 
         const systemPrompt = createSystemPrompt();
         const geminiApiKey = process.env.GEMINI_API_KEY;
-        const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`;
+        
+        // UPDATED: Use Gemini 2.5 Flash
+        const geminiApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
 
-        // CORRECTED request format for Gemini
         const geminiRequest = {
-            // The `contents` array must alternate between "user" and "model" roles.
             contents: [
                 {
-                    role: "user", // The first turn is from the "user"
+                    role: "user",
                     parts: [{ text: `${systemPrompt}\n\nInterviewer's Question: ${message}` }]
                 }
             ],
@@ -108,20 +108,43 @@ export default async function handler(req) {
             }
         };
 
-        const geminiResponse = await fetch(geminiApiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(geminiRequest)
-        });
+        // --- NEW RETRY LOGIC START ---
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        let geminiResponse;
+        let attempts = 0;
+        const maxAttempts = 3;
 
-        if (!geminiResponse.ok) {
-            const errorData = await geminiResponse.json().catch(() => ({}));
-            console.error('Gemini API error:', geminiResponse.status, errorData);
-            return new Response(JSON.stringify({ error: 'AI service temporarily unavailable' }), { status: 500 });
+        while (attempts < maxAttempts) {
+            try {
+                geminiResponse = await fetch(geminiApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(geminiRequest)
+                });
+
+                // If 503 (Overloaded) or 429 (Too Many Requests), wait and retry
+                if (geminiResponse.status === 503 || geminiResponse.status === 429) {
+                    console.log(`Attempt ${attempts + 1} busy (${geminiResponse.status}). Retrying...`);
+                    await delay(2000 * (attempts + 1)); // Wait 2s, then 4s, etc.
+                    attempts++;
+                } else {
+                    break; // Success or other error, stop looping
+                }
+            } catch (networkError) {
+                console.error("Network glitch, retrying...", networkError);
+                await delay(2000);
+                attempts++;
+            }
+        }
+        // --- RETRY LOGIC END ---
+
+        if (!geminiResponse || !geminiResponse.ok) {
+            const errorData = await geminiResponse?.json().catch(() => ({}));
+            console.error('Gemini API error:', geminiResponse?.status, errorData);
+            return new Response(JSON.stringify({ error: 'AI service temporarily unavailable. Please try again.' }), { status: 503 });
         }
 
         const geminiData = await geminiResponse.json();
-        // The path to the reply text is slightly different in the new format
         const aiReply = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (!aiReply) {
